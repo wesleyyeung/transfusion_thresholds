@@ -1,5 +1,5 @@
 ---
-title: "Blood Transfusion - Mortality Subgroup"
+title: "mortality"
 output: html_document
 ---
 
@@ -9,23 +9,23 @@ library(tidyverse)
 library(twang)
 library(sandwich)
 library(Matching)
-setwd('C:/Users/Wesley/OneDrive - architect plug-and-play supply-chains/Desktop/Amsterdam database/transfusion_combined')
+setwd('C:/Users/Wesley/OneDrive - architect plug-and-play supply-chains/Desktop/Amsterdam database/transfusion_targets')
 
 combined.data = read.csv("data/combined.csv")
 ```
 
 ```{r multivariate_logistic_regression, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
-groups = c('6 to 7','7 to 8','8 to 9','9 to 10','10 or more')
+groups = c('7 to 8','8 to 9','9 to 10','10 to 12')
 
 fit_glm = function(df) {
   result_df = data.frame()
   for (group in groups) {
-    model = glm(icu_mort ~ age_40.49 + age_50.59 + age_60.69 
-                             + age_70.79 + age_80. + gender + hgbmin + septicflag 
+    model = glm(expiremarker ~ age_40.49 + age_50.59 + age_60.69 
+                             + age_70.79 + age_80. + gender + hgbmin_mortality + septicflag 
                              + ventmarker + vasopressor + surgeryflag 
                              + ihdflag + pvdflag + chfflag + esrfflag +
-                             + sofatotal_dayLowestHmg_quantile + transfusedmarker,
-              data = df[df$hb_group==group,],binomial(link = 'logit'))
+                             + sofatotal_dayLowestHmg + transfusedmarker,
+              data = df[df$hb_group_mortality==group,],binomial(link = 'logit'))
     OR = exp(summary(model)$coefficients[,1])
     ci = exp(confint(model))
     p = summary(model)$coefficients[,4]
@@ -46,12 +46,12 @@ combined_lr = fit_glm(combined.data)
 psm = function(df) {
   df$ps = 0
   for (group in groups) {
-    df[df$hb_group==group,]$ps = ps(transfusedmarker ~ age_40.49 + age_50.59 + age_60.69 
-                                           + age_70.79 + age_80. + gender + hgbmin + septicflag 
+    df[df$hb_group_mortality==group,]$ps = ps(transfusedmarker ~ age_40.49 + age_50.59 + age_60.69 
+                                           + age_70.79 + age_80. + gender + hgbmin_mortality + septicflag 
                                            + ventmarker + vasopressor + surgeryflag 
                                            + ihdflag + pvdflag + chfflag + esrfflag +
-                                           + sofatotal_dayLowestHmg_quantile,
-                                           data = df[df$hb_group==group,],
+                                           + sofatotal_dayLowestHmg,
+                                           data = df[df$hb_group_mortality==group,],
                                            n.trees=20000, interaction.depth=2, shrinkage=0.01,
                                            perm.test.iters=0,estimand = "ATT")$ps[,1]
   }
@@ -91,8 +91,8 @@ combined_matched = read.csv('data/combined_matched_mortality.csv')
 fit_glm = function(df) {
   result_df = data.frame()
   for (group in groups) {
-    model = glm(icu_mort ~ transfusedmarker,
-              data = df[df$hb_group==group,],binomial(link = 'logit'))
+    model = glm(expiremarker ~ transfusedmarker,
+              data = df[df$hb_group_mortality==group,],binomial(link = 'logit'))
     OR = exp(summary(model)$coefficients[,1])
     ci = exp(confint(model))
     p = summary(model)$coefficients[,4]
@@ -113,8 +113,8 @@ combined_psm = fit_glm(combined_matched)
 iptw_glm = function(df) {
   result_df = data.frame()
   for (group in groups) {
-    model = glm(icu_mort ~ transfusedmarker,
-                data = df[df$hb_group==group,],
+    model = glm(expiremarker ~ transfusedmarker,
+                data = df[df$hb_group_mortality==group,],
                 family = binomial(link='logit'),
                 weight = ps_weight)
     OR = exp(summary(model)$coefficients[,1])
@@ -146,12 +146,12 @@ combined_iptw = iptw_glm(combined.data)
 doubly_robust = function(df) {
   result_df = data.frame()
   for (group in groups) {
-    model = glm(icu_mort ~ age_40.49 + age_50.59 + age_60.69 
-                            + age_70.79 + age_80. + gender + hgbmin + septicflag 
+    model = glm(expiremarker ~ age_40.49 + age_50.59 + age_60.69 
+                            + age_70.79 + age_80. + gender + hgbmin_mortality + septicflag 
                             + ventmarker + vasopressor + surgeryflag 
                             + ihdflag + pvdflag + chfflag + esrfflag +
                             + sofatotal_dayLowestHmg_quantile + transfusedmarker,
-                data = df[df$hb_group==group,],
+                data = df[df$hb_group_mortality==group,],
                 family = binomial(link='logit'),
                 weights = ps_weight)
     OR = exp(summary(model)$coefficients[,1])
@@ -196,14 +196,14 @@ make_plots = function(df_list) {
 ```{r plotting_functions_2, echo=FALSE, message=FALSE, warning=FALSE,results='hide'}
 make_plots = function(df_list) {
   par(mfrow=c(1,4))
-  groups = c('6 to 6.99','7 to 7.99','8 to 8.99','9 to 9.99','10 or more')
+  groups = c('7 to 7.99','8 to 8.99','9 to 9.99','10 to 11.99')
   method_list = list('Multivariate Logistic Regression','Propensity Score Matching','Inverse Probability of Treatment Weighting','Doubly Robust Estimation')
   color_list = list('#511845','#900C3F','#C70039','#F93800')
   i = 1
   for (df in df_list) {
     col = color_list[[i]]
-    plot(seq.int(length(groups)), df$OR, ylim= c(0,6), pch=19, col=col,
-         xlab="Minimum Hemoglobin (g/dL)", ylab="Odds Ratio", xaxt = "n", main=method_list[[i]],
+    plot(seq.int(length(groups)), df$OR, ylim= c(0,2), pch=19, col=col,
+         xlab="Transfusion Threshold (g/dL)", ylab="Odds Ratio", xaxt = "n", main=method_list[[i]],
          cex.lab=1.3, cex.axis=1.3, cex.main=2, cex.sub=1.3)
     axis(1, at=seq.int(length(groups)), labels=groups, cex.axis=1.3)
     # hack: we draw arrows but with very special "arrowheads"
@@ -220,9 +220,9 @@ make_plots = function(df_list) {
 ```{r, echo=FALSE,fig.height=5,fig.width=5,dpi=300}
 df = combined_dr
 col = '#283350'
-groups = c('6 to 6.99','7 to 7.99','8 to 8.99','9 to 9.99','10 or more')
-plot(seq.int(length(groups)), df$OR, ylim= c(0,6), pch=19, col=col,
-         xlab="Minimum Hemoglobin (g/dL)", ylab="Odds Ratio", xaxt = "n", main="Effect of Red Cell Transfusion On ICU Mortality",
+groups = c('7.0 to 7.9','8.0 to 8.9','9.0 to 9.9','10.0 to 11.9')
+plot(seq.int(length(groups)), df$OR, ylim= c(0,2), pch=19, col=col,
+         xlab="Transfusion Threshold (g/dL)", ylab="Odds Ratio", xaxt = "n", main="A. Mortality",
          cex.lab=1, cex.axis=1, cex.main=1, cex.sub=1)
 axis(1, at=seq.int(length(groups)), labels=groups, cex.axis=0.8)
 arrows(seq.int(length(groups)), df$upper, seq.int(length(groups)), df$lower,
@@ -243,3 +243,6 @@ dev.copy(png,width=20,height=5,units="in",res=300,'plots/mortality_supplement.pn
 print(df_list)
 ```
 
+```{r}
+write.csv(combined_dr,'data/mortality_plot.csv')
+```

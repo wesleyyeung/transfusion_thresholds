@@ -1,1 +1,4 @@
 data/
+.Rproj.user/
+transfusion_combined.Rproj
+transfusion_targets_dataset.Rds

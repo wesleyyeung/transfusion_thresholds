@@ -1,0 +1,42 @@
+---
+title: "6_combined_plots"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd('C:/Users/Wesley/OneDrive - architect plug-and-play supply-chains/Desktop/Amsterdam database/transfusion_targets')
+```
+
+```{r,}
+make_plots = function(df1, df2, color_pair, group1, group2,title,ylim) {
+  groups = c('7.0 to 7.9','8.0 to 8.9','9.0 to 9.9','10.0 to 11.9')
+
+  df = df1
+  col1 = color_pair[1]
+  plot(seq.int(length(groups))-0.1, df$OR, ylim= c(0,ylim), xlim=c(0.8,length(groups)+0.2), pch=19, col=col1,
+           xlab="Transfusion Threshold (g/dL)", ylab="Odds Ratio", xaxt = "n", main=title,
+           cex.lab=1, cex.axis=1, cex.main=1, cex.sub=1)
+  axis(1, at=seq.int(length(groups)), labels=groups, cex.axis=0.8)
+  arrows(seq.int(length(groups))-0.1, df$upper, seq.int(length(groups))-0.1, df$lower,
+         col=col1,length=0.05, angle=90, code=3)
+  
+  df = df2
+  col2 = color_pair[2]
+  points(seq.int(length(groups))+0.1, df$OR, pch=19, col=col2)
+  arrows(seq.int(length(groups))+0.1, df$upper, seq.int(length(groups))+0.1, df$lower,
+         col=col2,length=0.05, angle=90, code=3)
+  
+  legend(0.8, ylim, legend=c(group1, group2),col=c(col1, col2), text.width=max(strwidth(c(group1, group2)))*0.8,lty=c(1,1), cex=0.8)
+  
+  abline(h=1,lty = 2)
+}
+```
+
+```{r, fig.height=5,fig.width=5,dpi=300, echo=FALSE, message=FALSE, include=TRUE}
+mortality = read.csv('data/mortality_plot.csv')
+deltasofa = read.csv('data/deltasofa_plot.csv')
+color_pair = c('#8D230F','#1E434C')
+make_plots(mortality,deltasofa,color_pair,'Mortality','Deterioration in SOFA','',ylim=3)
+dev.copy(png,width=5,height=5,units="in",res=300,'plots/combined_plot.png')
+```
